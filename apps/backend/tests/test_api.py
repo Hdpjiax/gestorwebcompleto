@@ -65,6 +65,8 @@ def test_launch_stop_stubs() -> None:
     assert launched.status_code == 200
     assert launched.json()["status"] in {"stubbed", "prepared"}
     assert launched.json()["proxy_port"] >= 9100 + profile["id"]
+    assert launched.json()["runtime"] == "camoufox"
+    assert launched.json()["launch_options"]["user_data_dir"].endswith(str(profile["id"]))
 
     running = client.get(f"/profiles/{profile['id']}")
     assert running.json()["is_running"] is True
@@ -77,6 +79,10 @@ def test_launch_stop_stubs() -> None:
     assert proxy.status_code == 200
     assert proxy.json()["profile_id"] == profile["id"]
     assert proxy.json()["port"] == launched.json()["proxy_port"]
+
+    browser = client.get(f"/profiles/{profile['id']}/browser")
+    assert browser.status_code == 200
+    assert browser.json()["profile_id"] == profile["id"]
 
     stopped = client.post(f"/profiles/{profile['id']}/stop")
     assert stopped.status_code == 200

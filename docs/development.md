@@ -65,3 +65,5 @@ Esto permite desarrollar y probar la UI sin instalar mitmproxy. Para activar cap
 ```bash
 apps/backend/.venv/bin/python -m pip install -r apps/backend/requirements-runtime.txt
 ```
+
+El archivo runtime tambien instala Camoufox. Mientras Camoufox no este instalado, `CamoufoxLauncher` prepara opciones auditables y devuelve estado `stubbed`; no intenta automatizar navegacion real.

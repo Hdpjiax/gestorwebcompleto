@@ -69,6 +69,15 @@ class SessionStatus(BaseModel):
     browser_pid: int | None = None
     proxy_port: int | None = None
     user_data_dir: str
+    runtime: str = "stubbed"
+    launch_options: dict[str, Any] = Field(default_factory=dict)
+    detail: str
+
+
+class BrowserRuntimeStatus(BaseModel):
+    profile_id: int
+    status: str
+    pid: int | None = None
     detail: str
 
 

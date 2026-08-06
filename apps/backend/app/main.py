@@ -9,6 +9,7 @@ from .models import (
     FlowReplayStatus,
     BrowserOpenRequest,
     BrowserOpenStatus,
+    BrowserRuntimeStatus,
     HttpFlow,
     HttpFlowCreate,
     InterceptedRequest,
@@ -151,6 +152,11 @@ def get_profile_session(profile_id: int) -> SessionStatus | None:
 @app.get("/profiles/{profile_id}/proxy", response_model=ProxyStatus | None)
 def get_profile_proxy(profile_id: int) -> ProxyStatus | None:
     return launcher.proxy_orchestrator.get(profile_id)
+
+
+@app.get("/profiles/{profile_id}/browser", response_model=BrowserRuntimeStatus | None)
+def get_profile_browser(profile_id: int) -> BrowserRuntimeStatus | None:
+    return launcher.get_browser(profile_id)
 
 
 @app.put("/profiles/{profile_id}/anonymity-level", response_model=Profile)
