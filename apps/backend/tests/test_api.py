@@ -234,13 +234,26 @@ def test_intercept_rule_pauses_matching_flow() -> None:
     assert deleted.status_code == 204
 
 
-def test_flow_websocket_echo() -> None:
-    with client.websocket_connect("/ws/flows/123") as websocket:
+def test_flow_websocket_streams_created_flows() -> None:
+    profile = create_profile("Realtime profile")
+    with client.websocket_connect(f"/ws/flows/{profile['id']}") as websocket:
         connected = websocket.receive_json()
         assert connected["type"] == "connected"
-        assert connected["profile_id"] == 123
+        assert connected["profile_id"] == profile["id"]
 
-        websocket.send_text("ping")
-        echo = websocket.receive_json()
-        assert echo["type"] == "echo"
-        assert echo["message"] == "ping"
+        created = client.post(
+            "/interceptor/flows",
+            json={
+                "profile_id": profile["id"],
+                "method": "GET",
+                "host": "training.portal.local",
+                "path": "/realtime",
+                "status_code": 200,
+            },
+        )
+        assert created.status_code == 201
+
+        event = websocket.receive_json()
+        assert event["type"] == "flow.created"
+        assert event["profile_id"] == profile["id"]
+        assert event["payload"]["path"] == "/realtime"

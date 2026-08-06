@@ -83,6 +83,24 @@ export function App() {
     void refreshBackend();
   }, []);
 
+  useEffect(() => {
+    if (!backendStatus.online || !selectedProfile) return;
+
+    const socket = new WebSocket(`${apiClient.wsUrl}/ws/flows/${selectedProfile.id}`);
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as { type: string };
+        if (message.type === 'flow.created' || message.type === 'flow.decision') {
+          void refreshBackend();
+        }
+      } catch {
+        // Ignore malformed realtime frames.
+      }
+    };
+
+    return () => socket.close();
+  }, [backendStatus.online, selectedProfile?.id]);
+
   async function addProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 

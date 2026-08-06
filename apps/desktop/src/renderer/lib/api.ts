@@ -60,6 +60,7 @@ export type InterceptRule = {
 };
 
 const API_BASE_URL = 'http://127.0.0.1:8756';
+const WS_BASE_URL = 'ws://127.0.0.1:8756';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -79,6 +80,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   baseUrl: API_BASE_URL,
+  wsUrl: WS_BASE_URL,
   async health(): Promise<BackendStatus> {
     const started = performance.now();
 

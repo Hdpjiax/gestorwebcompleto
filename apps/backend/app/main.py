@@ -28,6 +28,7 @@ from .storage import SQLiteStore
 from .services.anonymity_presets import list_presets
 from .services.interceptor import InterceptorService
 from .services.launcher import LauncherRegistry
+from .services.realtime import RealtimeHub
 
 
 app = FastAPI(
@@ -38,6 +39,7 @@ app = FastAPI(
 
 store: SQLiteStore | None = None
 launcher = LauncherRegistry()
+realtime = RealtimeHub()
 
 BUILTIN_FLOWS = [
     Flow(
@@ -202,10 +204,12 @@ def list_http_flows(profile_id: int | None = None, db: SQLiteStore = Depends(get
 
 
 @app.post("/interceptor/flows", response_model=HttpFlow, status_code=status.HTTP_201_CREATED)
-def record_http_flow(payload: HttpFlowCreate, db: SQLiteStore = Depends(get_store)) -> HttpFlow:
+async def record_http_flow(payload: HttpFlowCreate, db: SQLiteStore = Depends(get_store)) -> HttpFlow:
     if db.get_profile(payload.profile_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return InterceptorService(db).record_flow(payload)
+    flow = InterceptorService(db).record_flow(payload)
+    await realtime.broadcast(payload.profile_id, "flow.created", flow.model_dump(mode="json"))
+    return flow
 
 
 @app.get("/interceptor/requests", response_model=list[InterceptedRequest])
@@ -227,14 +231,18 @@ def replay_http_flow(
 
 
 @app.post("/interceptor/flows/{flow_id}/decision", response_model=FlowDecision)
-def decide_http_flow(
+async def decide_http_flow(
     flow_id: str,
     payload: FlowDecisionRequest,
     db: SQLiteStore = Depends(get_store),
 ) -> FlowDecision:
-    decision = InterceptorService(db).decide(flow_id, payload)
+    service = InterceptorService(db)
+    decision = service.decide(flow_id, payload)
     if decision is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flow not found")
+    flow = db.get_http_flow(flow_id)
+    if flow is not None:
+        await realtime.broadcast(flow["profile_id"], "flow.decision", decision.model_dump(mode="json"))
     return decision
 
 
@@ -274,23 +282,10 @@ def open_browser(payload: BrowserOpenRequest) -> BrowserOpenStatus:
 
 @app.websocket("/ws/flows/{profile_id}")
 async def flows_websocket(websocket: WebSocket, profile_id: int) -> None:
-    await websocket.accept()
-    await websocket.send_json(
-        {
-            "type": "connected",
-            "profile_id": profile_id,
-            "message": "Flow event stream connected.",
-        }
-    )
+    await realtime.connect(profile_id, websocket)
     try:
         while True:
-            message = await websocket.receive_text()
-            await websocket.send_json(
-                {
-                    "type": "echo",
-                    "profile_id": profile_id,
-                    "message": message,
-                }
-            )
+            await websocket.receive_text()
     except WebSocketDisconnect:
+        realtime.disconnect(profile_id, websocket)
         return

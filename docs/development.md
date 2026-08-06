@@ -53,6 +53,7 @@ Contrato inicial disponible:
 - `POST /interceptor/rules`: crea una regla por perfil para aplicar decisiones automaticas por metodo, host y path.
 - `GET /interceptor/rules?profile_id=<id>`: lista reglas activas o historicas.
 - `DELETE /interceptor/rules/{rule_id}`: elimina una regla de intercepcion.
+- `WS /ws/flows/{profile_id}`: emite eventos `flow.created` y `flow.decision` para refresco en vivo.
 
 Las cabeceras sensibles (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) se redactan antes de persistir. Los flows `in_scope=false` se guardan como evidencia minima y bloquean replay.
 
