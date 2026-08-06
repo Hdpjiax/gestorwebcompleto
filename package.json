@@ -1,0 +1,17 @@
+{
+  "name": "gestorwebcompleto",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Gestor web de ciberseguridad educativo/profesional con Camoufox embebido.",
+  "scripts": {
+    "dev:desktop": "npm --prefix apps/desktop run dev",
+    "dev:backend": "cd apps/backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8756",
+    "build": "npm --prefix apps/desktop run build",
+    "test": "npm --prefix apps/desktop run typecheck && cd apps/backend && .venv/bin/python -m pytest -q -s",
+    "lint": "npm --prefix apps/desktop run typecheck"
+  },
+  "workspaces": [
+    "apps/desktop",
+    "packages/*"
+  ]
+}

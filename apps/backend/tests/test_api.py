@@ -1,0 +1,112 @@
+from collections.abc import Generator
+
+from fastapi.testclient import TestClient
+
+from app.main import app, get_store
+from app.storage import SQLiteStore
+
+
+TEST_STORE = SQLiteStore(":memory:")
+
+
+def override_store() -> Generator[SQLiteStore, None, None]:
+    yield TEST_STORE
+
+
+app.dependency_overrides[get_store] = override_store
+client = TestClient(app)
+
+
+def create_profile(name: str = "Training Profile") -> dict:
+    response = client.post(
+        "/profiles",
+        json={
+            "name": name,
+            "description": "Profile for controlled exercises",
+            "anonymity_level": "medium",
+            "camoufox_config": {"headless": True},
+        },
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_health() -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_profile_crud_and_anonymity_level() -> None:
+    profile = create_profile()
+
+    fetched = client.get(f"/profiles/{profile['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Training Profile"
+
+    updated = client.put(
+        f"/profiles/{profile['id']}/anonymity-level",
+        json={"anonymity_level": "high"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["anonymity_level"] == "high"
+
+    deleted = client.delete(f"/profiles/{profile['id']}")
+    assert deleted.status_code == 204
+
+    missing = client.get(f"/profiles/{profile['id']}")
+    assert missing.status_code == 404
+
+
+def test_launch_stop_stubs() -> None:
+    profile = create_profile("Launchable")
+
+    launched = client.post(f"/profiles/{profile['id']}/launch")
+    assert launched.status_code == 200
+    assert launched.json()["status"] == "stubbed"
+
+    running = client.get(f"/profiles/{profile['id']}")
+    assert running.json()["is_running"] is True
+
+    stopped = client.post(f"/profiles/{profile['id']}/stop")
+    assert stopped.status_code == 200
+    assert stopped.json()["status"] == "stubbed"
+
+    not_running = client.get(f"/profiles/{profile['id']}")
+    assert not_running.json()["is_running"] is False
+
+
+def test_flows_and_replay_stub() -> None:
+    flows = client.get("/flows")
+    assert flows.status_code == 200
+    assert len(flows.json()) >= 1
+
+    flow_id = flows.json()[0]["id"]
+    replay = client.post(f"/flows/{flow_id}/replay")
+    assert replay.status_code == 200
+    assert replay.json()["status"] == "stubbed"
+
+
+def test_frontend_compatibility_endpoints() -> None:
+    requests = client.get("/interceptor/requests")
+    assert requests.status_code == 200
+    assert requests.json()[0]["host"] == "training.portal.local"
+
+    browser = client.post(
+        "/browser/open",
+        json={"profileId": "1", "url": "https://training.portal.local/login"},
+    )
+    assert browser.status_code == 200
+    assert browser.json()["status"] == "stubbed"
+
+
+def test_flow_websocket_echo() -> None:
+    with client.websocket_connect("/ws/flows/123") as websocket:
+        connected = websocket.receive_json()
+        assert connected["type"] == "connected"
+        assert connected["profile_id"] == 123
+
+        websocket.send_text("ping")
+        echo = websocket.receive_json()
+        assert echo["type"] == "echo"
+        assert echo["message"] == "ping"

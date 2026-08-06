@@ -1,0 +1,11 @@
+{
+  "name": "uniform-max",
+  "description": "Preset conservador de fingerprint uniforme para nivel 3.",
+  "viewport": { "width": 1280, "height": 720 },
+  "timezone": "UTC",
+  "locale": "en-US",
+  "webgl": "blocked",
+  "canvas": "blocked",
+  "webrtc": "blocked",
+  "cache": "disabled"
+}

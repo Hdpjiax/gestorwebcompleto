@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hdpjiax/gestorwebcompleto/profile.schema.json",
+  "title": "BrowserProfile",
+  "type": "object",
+  "required": ["id", "name", "anonymity_level", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "anonymity_level": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "status": { "type": "string", "enum": ["stopped", "launching", "running", "error"] },
+    "proxy": {
+      "type": ["object", "null"],
+      "properties": {
+        "scheme": { "type": "string", "enum": ["http", "https", "socks5"] },
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "username": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
