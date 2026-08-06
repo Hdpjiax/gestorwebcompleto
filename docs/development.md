@@ -50,6 +50,9 @@ Contrato inicial disponible:
 - `POST /interceptor/flows/{flow_id}/replay`: valida replay manual dentro de alcance; la ejecucion de red real sigue stubbed.
 - `POST /interceptor/flows/{flow_id}/decision`: registra una decision `forward`, `drop`, `replay` u `out_of_scope`.
 - `GET /interceptor/flows/{flow_id}/decisions`: devuelve la auditoria de decisiones del flow.
+- `POST /interceptor/rules`: crea una regla por perfil para aplicar decisiones automaticas por metodo, host y path.
+- `GET /interceptor/rules?profile_id=<id>`: lista reglas activas o historicas.
+- `DELETE /interceptor/rules/{rule_id}`: elimina una regla de intercepcion.
 
 Las cabeceras sensibles (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) se redactan antes de persistir. Los flows `in_scope=false` se guardan como evidencia minima y bloquean replay.
 

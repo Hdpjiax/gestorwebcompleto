@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .models import AnonymityLevel, FlowDecisionRequest, HttpFlowCreate, InterceptDecision, ProfileCreate, ProfileUpdate
+from .models import (
+    AnonymityLevel,
+    FlowDecisionRequest,
+    HttpFlowCreate,
+    InterceptDecision,
+    InterceptRuleCreate,
+    ProfileCreate,
+    ProfileUpdate,
+)
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "backend.sqlite3"
@@ -93,6 +101,22 @@ class SQLiteStore:
                     reason TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(flow_id) REFERENCES http_flows(id) ON DELETE CASCADE
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS intercept_rules (
+                    id TEXT PRIMARY KEY,
+                    profile_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    method TEXT,
+                    host_pattern TEXT NOT NULL,
+                    path_pattern TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(profile_id) REFERENCES profiles(id) ON DELETE CASCADE
                 )
                 """
             )
@@ -222,6 +246,54 @@ class SQLiteStore:
             raise RuntimeError("flow was not persisted")
         return flow
 
+    def create_intercept_rule(self, payload: InterceptRuleCreate) -> dict[str, Any]:
+        rule_id = f"rule-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        created_at = utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO intercept_rules (
+                    id, profile_id, name, method, host_pattern, path_pattern, decision, enabled, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rule_id,
+                    payload.profile_id,
+                    payload.name,
+                    payload.method.upper() if payload.method else None,
+                    payload.host_pattern,
+                    payload.path_pattern,
+                    payload.decision.value,
+                    1 if payload.enabled else 0,
+                    created_at,
+                ),
+            )
+        rule = self.get_intercept_rule(rule_id)
+        if rule is None:
+            raise RuntimeError("intercept rule was not persisted")
+        return rule
+
+    def list_intercept_rules(self, profile_id: int | None = None) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            if profile_id is None:
+                rows = conn.execute("SELECT * FROM intercept_rules ORDER BY created_at DESC").fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM intercept_rules WHERE profile_id = ? ORDER BY created_at DESC",
+                    (profile_id,),
+                ).fetchall()
+            return [self._row_to_intercept_rule(row) for row in rows]
+
+    def get_intercept_rule(self, rule_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM intercept_rules WHERE id = ?", (rule_id,)).fetchone()
+            return self._row_to_intercept_rule(row) if row else None
+
+    def delete_intercept_rule(self, rule_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM intercept_rules WHERE id = ?", (rule_id,))
+            return cursor.rowcount > 0
+
     def apply_flow_decision(self, flow_id: str, payload: FlowDecisionRequest) -> dict[str, Any] | None:
         flow = self.get_http_flow(flow_id)
         if flow is None:
@@ -295,4 +367,10 @@ class SQLiteStore:
         data["response_headers"] = json.loads(data["response_headers"])
         data["in_scope"] = bool(data["in_scope"])
         data["replayable"] = bool(data["replayable"])
+        return data
+
+    @staticmethod
+    def _row_to_intercept_rule(row: sqlite3.Row) -> dict[str, Any]:
+        data = dict(row)
+        data["enabled"] = bool(data["enabled"])
         return data

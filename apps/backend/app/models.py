@@ -162,6 +162,21 @@ class FlowDecision(BaseModel):
     created_at: datetime
 
 
+class InterceptRuleCreate(BaseModel):
+    profile_id: int
+    name: str = Field(min_length=1, max_length=120)
+    method: str | None = Field(default=None, max_length=12)
+    host_pattern: str = Field(default="*", min_length=1, max_length=255)
+    path_pattern: str = Field(default="*", min_length=1, max_length=2048)
+    decision: InterceptDecision = InterceptDecision.paused
+    enabled: bool = True
+
+
+class InterceptRule(InterceptRuleCreate):
+    id: str
+    created_at: datetime
+
+
 class ReplayRequest(BaseModel):
     method: str | None = Field(default=None, max_length=12)
     path: str | None = Field(default=None, max_length=2048)

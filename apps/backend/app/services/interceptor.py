@@ -1,4 +1,16 @@
-from ..models import FlowDecision, FlowDecisionRequest, HttpFlow, HttpFlowCreate, InterceptDecision, InterceptedRequest, ReplayRequest
+from fnmatch import fnmatch
+
+from ..models import (
+    FlowDecision,
+    FlowDecisionRequest,
+    HttpFlow,
+    HttpFlowCreate,
+    InterceptDecision,
+    InterceptRule,
+    InterceptRuleCreate,
+    InterceptedRequest,
+    ReplayRequest,
+)
 from ..storage import SQLiteStore
 
 
@@ -12,12 +24,16 @@ class InterceptorService:
     def record_flow(self, payload: HttpFlowCreate) -> HttpFlow:
         profile = self.store.get_profile(payload.profile_id)
         in_scope = payload.in_scope and _host_allowed(payload.host, profile["allowed_hosts"] if profile else [])
+        decision = InterceptDecision.out_of_scope
+        if in_scope:
+            decision = self._matching_decision(payload) or payload.intercept_decision
         redacted = payload.model_copy(
             update={
                 "request_headers": _redact_headers(payload.request_headers),
                 "response_headers": _redact_headers(payload.response_headers),
                 "in_scope": in_scope,
                 "replayable": in_scope,
+                "intercept_decision": decision,
             }
         )
         return HttpFlow.model_validate(self.store.create_http_flow(redacted))
@@ -65,6 +81,28 @@ class InterceptorService:
 
     def list_decisions(self, flow_id: str) -> list[FlowDecision]:
         return [FlowDecision.model_validate(row) for row in self.store.list_flow_decisions(flow_id)]
+
+    def create_rule(self, payload: InterceptRuleCreate) -> InterceptRule:
+        return InterceptRule.model_validate(self.store.create_intercept_rule(payload))
+
+    def list_rules(self, profile_id: int | None = None) -> list[InterceptRule]:
+        return [InterceptRule.model_validate(row) for row in self.store.list_intercept_rules(profile_id)]
+
+    def delete_rule(self, rule_id: str) -> bool:
+        return self.store.delete_intercept_rule(rule_id)
+
+    def _matching_decision(self, payload: HttpFlowCreate) -> InterceptDecision | None:
+        for rule in self.list_rules(payload.profile_id):
+            if not rule.enabled:
+                continue
+            if rule.method and rule.method.upper() != payload.method.upper():
+                continue
+            if not fnmatch(payload.host.lower(), rule.host_pattern.lower()):
+                continue
+            if not fnmatch(payload.path, rule.path_pattern):
+                continue
+            return rule.decision
+        return None
 
 
 def _host_allowed(host: str, allowed_hosts: list[str]) -> bool:

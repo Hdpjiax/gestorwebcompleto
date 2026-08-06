@@ -47,6 +47,18 @@ export type InterceptedRequest = {
   time: string;
 };
 
+export type InterceptRule = {
+  id: string;
+  profile_id: number;
+  name: string;
+  method?: string | null;
+  host_pattern: string;
+  path_pattern: string;
+  decision: 'forward' | 'drop' | 'replay' | 'paused' | 'out_of_scope';
+  enabled: boolean;
+  created_at: string;
+};
+
 const API_BASE_URL = 'http://127.0.0.1:8756';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -109,6 +121,12 @@ export const apiClient = {
   },
   traffic: {
     list: () => request<InterceptedRequest[]>('/interceptor/requests'),
+    listRules: (profileId?: string) => request<InterceptRule[]>(`/interceptor/rules${profileId ? `?profile_id=${profileId}` : ''}`),
+    createRule: (rule: Omit<InterceptRule, 'id' | 'created_at'>) =>
+      request<InterceptRule>('/interceptor/rules', {
+        method: 'POST',
+        body: JSON.stringify(rule)
+      }),
     decide: (flowId: string, decision: 'forward' | 'drop' | 'replay') =>
       request<{ id: string; flow_id: string; decision: string }>(`/interceptor/flows/${flowId}/decision`, {
         method: 'POST',

@@ -366,6 +366,12 @@ select {
   min-height: 560px;
 }
 
+.interceptor-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
 .request-table {
   display: grid;
   margin-top: 18px;
@@ -429,6 +435,22 @@ select {
 .table-actions {
   display: flex;
   gap: 6px;
+}
+
+.rule-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rule-chip {
+  background: #f8f7f3;
+  border: 1px solid #e2dfd6;
+  border-radius: 6px;
+  color: #4d5651;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px;
 }
 
 .browser-panel {
@@ -505,6 +527,10 @@ select {
   }
 
   .two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .interceptor-layout {
     grid-template-columns: 1fr;
   }
 

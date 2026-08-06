@@ -16,7 +16,7 @@ import {
   WifiOff
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { apiClient, BackendStatus, InterceptedRequest, Profile } from './lib/api';
+import { apiClient, BackendStatus, InterceptedRequest, InterceptRule, Profile } from './lib/api';
 import { mockProfiles, mockRequests } from './lib/mockData';
 
 type Section = 'dashboard' | 'profiles' | 'interceptor' | 'browser' | 'anonymity';
@@ -33,6 +33,7 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>('dashboard');
   const [profiles, setProfiles] = useState<Profile[]>(mockProfiles);
   const [requests, setRequests] = useState<InterceptedRequest[]>(mockRequests);
+  const [rules, setRules] = useState<InterceptRule[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState(mockProfiles[0].id);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>({ online: false });
   const [browserUrl, setBrowserUrl] = useState('https://training.portal.local/login');
@@ -44,6 +45,13 @@ export function App() {
     allowedHosts: 'localhost, 127.0.0.1'
   });
   const [operationStatus, setOperationStatus] = useState('Ready');
+  const [newRule, setNewRule] = useState({
+    name: 'Pause matching requests',
+    method: 'POST',
+    hostPattern: '*.portal.local',
+    pathPattern: '/login*',
+    decision: 'paused' as InterceptRule['decision']
+  });
 
   const selectedProfile = useMemo(
     () => profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0],
@@ -56,12 +64,14 @@ export function App() {
 
     if (status.online) {
       try {
-        const [remoteProfiles, remoteRequests] = await Promise.all([
+        const [remoteProfiles, remoteRequests, remoteRules] = await Promise.all([
           apiClient.profiles.list(),
-          apiClient.traffic.list()
+          apiClient.traffic.list(),
+          apiClient.traffic.listRules()
         ]);
         setProfiles(remoteProfiles);
         setRequests(remoteRequests);
+        setRules(remoteRules);
         setSelectedProfileId(remoteProfiles[0]?.id ?? selectedProfileId);
       } catch {
         // Keep local mock state when the backend contract is not ready yet.
@@ -202,6 +212,31 @@ export function App() {
       }
     } catch (error) {
       setOperationStatus(error instanceof Error ? error.message : 'Decision failed');
+    }
+  }
+
+  async function addRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProfile) return;
+    if (!backendStatus.online) {
+      setOperationStatus('Rule creation requires backend online');
+      return;
+    }
+
+    try {
+      const rule = await apiClient.traffic.createRule({
+        profile_id: Number(selectedProfile.id),
+        name: newRule.name.trim() || 'Intercept rule',
+        method: newRule.method.trim() || null,
+        host_pattern: newRule.hostPattern.trim() || '*',
+        path_pattern: newRule.pathPattern.trim() || '*',
+        decision: newRule.decision,
+        enabled: true
+      });
+      setRules((current) => [rule, ...current]);
+      setOperationStatus(`Rule saved: ${rule.name}`);
+    } catch (error) {
+      setOperationStatus(error instanceof Error ? error.message : 'Rule creation failed');
     }
   }
 
@@ -356,7 +391,16 @@ export function App() {
         )}
 
         {activeSection === 'interceptor' && (
-          <InterceptorTable decideRequest={decideRequest} replayRequest={replayRequest} requests={requests} />
+          <section className="interceptor-layout">
+            <InterceptorTable decideRequest={decideRequest} replayRequest={replayRequest} requests={requests} />
+            <RuleBuilder
+              addRule={addRule}
+              newRule={newRule}
+              rules={rules}
+              selectedProfile={selectedProfile}
+              setNewRule={setNewRule}
+            />
+          </section>
         )}
         {activeSection === 'browser' && (
           <BrowserPanel
@@ -371,6 +415,79 @@ export function App() {
         {activeSection === 'anonymity' && <AnonymitySettings selectedProfile={selectedProfile} updateAnonymity={updateAnonymity} />}
       </main>
     </div>
+  );
+}
+
+function RuleBuilder({
+  addRule,
+  newRule,
+  rules,
+  selectedProfile,
+  setNewRule
+}: {
+  addRule: (event: FormEvent<HTMLFormElement>) => void;
+  newRule: {
+    name: string;
+    method: string;
+    hostPattern: string;
+    pathPattern: string;
+    decision: InterceptRule['decision'];
+  };
+  rules: InterceptRule[];
+  selectedProfile?: Profile;
+  setNewRule: (rule: {
+    name: string;
+    method: string;
+    hostPattern: string;
+    pathPattern: string;
+    decision: InterceptRule['decision'];
+  }) => void;
+}) {
+  return (
+    <form className="panel form-panel" onSubmit={addRule}>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Rules</p>
+          <h3>Auto-intercept</h3>
+        </div>
+        <SlidersHorizontal size={18} />
+      </div>
+      <label>
+        Rule name
+        <input value={newRule.name} onChange={(event) => setNewRule({ ...newRule, name: event.target.value })} />
+      </label>
+      <label>
+        Method
+        <input value={newRule.method} onChange={(event) => setNewRule({ ...newRule, method: event.target.value.toUpperCase() })} />
+      </label>
+      <label>
+        Host pattern
+        <input value={newRule.hostPattern} onChange={(event) => setNewRule({ ...newRule, hostPattern: event.target.value })} />
+      </label>
+      <label>
+        Path pattern
+        <input value={newRule.pathPattern} onChange={(event) => setNewRule({ ...newRule, pathPattern: event.target.value })} />
+      </label>
+      <label>
+        Decision
+        <select
+          value={newRule.decision}
+          onChange={(event) => setNewRule({ ...newRule, decision: event.target.value as InterceptRule['decision'] })}
+        >
+          <option value="paused">Paused</option>
+          <option value="forward">Forward</option>
+          <option value="drop">Drop</option>
+        </select>
+      </label>
+      <button className="primary-button" type="submit">Create rule for {selectedProfile?.name ?? 'profile'}</button>
+      <div className="rule-list">
+        {rules.slice(0, 5).map((rule) => (
+          <span className="rule-chip" key={rule.id}>
+            {rule.method ?? '*'} {rule.host_pattern}{rule.path_pattern} {'->'} {rule.decision}
+          </span>
+        ))}
+      </div>
+    </form>
   );
 }
 

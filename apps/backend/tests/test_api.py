@@ -197,6 +197,43 @@ def test_out_of_scope_flow_blocks_replay() -> None:
     assert replay.json()["status"] == "blocked"
 
 
+def test_intercept_rule_pauses_matching_flow() -> None:
+    profile = create_profile("Rule profile")
+    rule = client.post(
+        "/interceptor/rules",
+        json={
+            "profile_id": profile["id"],
+            "name": "Pause login posts",
+            "method": "POST",
+            "host_pattern": "*.portal.local",
+            "path_pattern": "/login*",
+            "decision": "paused",
+        },
+    )
+    assert rule.status_code == 201
+    assert rule.json()["decision"] == "paused"
+
+    listed = client.get(f"/interceptor/rules?profile_id={profile['id']}")
+    assert listed.status_code == 200
+    assert listed.json()[0]["name"] == "Pause login posts"
+
+    flow = client.post(
+        "/interceptor/flows",
+        json={
+            "profile_id": profile["id"],
+            "method": "POST",
+            "host": "training.portal.local",
+            "path": "/login/session",
+            "status_code": 200,
+        },
+    )
+    assert flow.status_code == 201
+    assert flow.json()["intercept_decision"] == "paused"
+
+    deleted = client.delete(f"/interceptor/rules/{rule.json()['id']}")
+    assert deleted.status_code == 204
+
+
 def test_flow_websocket_echo() -> None:
     with client.websocket_connect("/ws/flows/123") as websocket:
         connected = websocket.receive_json()

@@ -15,6 +15,8 @@ from .models import (
     HttpFlow,
     HttpFlowCreate,
     InterceptedRequest,
+    InterceptRule,
+    InterceptRuleCreate,
     Profile,
     ProfileCreate,
     ProfileUpdate,
@@ -241,6 +243,24 @@ def list_http_flow_decisions(flow_id: str, db: SQLiteStore = Depends(get_store))
     if db.get_http_flow(flow_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flow not found")
     return InterceptorService(db).list_decisions(flow_id)
+
+
+@app.get("/interceptor/rules", response_model=list[InterceptRule])
+def list_intercept_rules(profile_id: int | None = None, db: SQLiteStore = Depends(get_store)) -> list[InterceptRule]:
+    return InterceptorService(db).list_rules(profile_id)
+
+
+@app.post("/interceptor/rules", response_model=InterceptRule, status_code=status.HTTP_201_CREATED)
+def create_intercept_rule(payload: InterceptRuleCreate, db: SQLiteStore = Depends(get_store)) -> InterceptRule:
+    if db.get_profile(payload.profile_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return InterceptorService(db).create_rule(payload)
+
+
+@app.delete("/interceptor/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_intercept_rule(rule_id: str, db: SQLiteStore = Depends(get_store)) -> None:
+    if not InterceptorService(db).delete_rule(rule_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
 
 
 @app.post("/browser/open", response_model=BrowserOpenStatus)
