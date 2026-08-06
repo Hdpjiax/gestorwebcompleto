@@ -282,6 +282,9 @@ agents/orchestrator.py
 - Addon `modify_addon.py`: soporte `flow.intercept()`/`resume()` para pausa-edición-reenvío [web:40].
 - Instalación automática del certificado CA de mitmproxy dentro del `user_data_dir` de cada Camoufox para evitar errores TLS [web:7][web:13].
 - Endpoint `/flows/{id}/replay` (equivalente a Repeater).
+- Roadmap operativo detallado: [`docs/phase-2-roadmap.md`](phase-2-roadmap.md).
+- Runbook de setup Windows/WSL: [`docs/windows-wsl-runbook.md`](windows-wsl-runbook.md).
+- Checklist de agentes para esta fase: [`docs/agent-checklist.md`](agent-checklist.md).
 
 ### Fase 3 — Motor de anonimato (3 niveles)
 - Implementar `anonymity_presets.py` con las 3 configuraciones de la sección 5.

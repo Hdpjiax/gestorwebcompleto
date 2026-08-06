@@ -14,6 +14,15 @@ export type Profile = {
   riskScore: number;
 };
 
+export type SessionStatus = {
+  profile_id: number;
+  status: string;
+  browser_pid?: number | null;
+  proxy_port?: number | null;
+  user_data_dir: string;
+  detail: string;
+};
+
 type BackendProfile = {
   id: number;
   name: string;
@@ -83,6 +92,13 @@ export const apiClient = {
           description: `${profile.role} profile`,
           camoufox_config: { proxy: profile.proxy }
         })
+      }).then(toUiProfile),
+    launch: (profileId: string) => request<SessionStatus>(`/profiles/${profileId}/launch`, { method: 'POST' }),
+    stop: (profileId: string) => request<SessionStatus>(`/profiles/${profileId}/stop`, { method: 'POST' }),
+    setAnonymityLevel: (profileId: string, level: 'low' | 'medium' | 'high') =>
+      request<BackendProfile>(`/profiles/${profileId}/anonymity-level`, {
+        method: 'PUT',
+        body: JSON.stringify({ anonymity_level: level })
       }).then(toUiProfile)
   },
   traffic: {

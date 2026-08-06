@@ -140,6 +140,24 @@ button {
   justify-content: space-between;
 }
 
+.operation-strip {
+  align-items: center;
+  background: #111827;
+  border: 1px solid #243043;
+  border-radius: 8px;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.operation-strip strong {
+  color: #f8fafc;
+  font-size: 13px;
+}
+
 .eyebrow {
   color: #69736e;
   font-size: 12px;
@@ -214,6 +232,27 @@ button {
   display: grid;
   gap: 10px;
   margin-top: 16px;
+}
+
+.preset-buttons {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.preset-buttons button {
+  background: #172033;
+  border: 1px solid #2a3850;
+  border-radius: 8px;
+  color: #e5e7eb;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 38px;
+}
+
+.preset-buttons button:hover {
+  border-color: #56b6c2;
 }
 
 .profile-row {

@@ -64,13 +64,18 @@ def test_launch_stop_stubs() -> None:
     launched = client.post(f"/profiles/{profile['id']}/launch")
     assert launched.status_code == 200
     assert launched.json()["status"] == "stubbed"
+    assert launched.json()["proxy_port"] == 9000 + profile["id"]
 
     running = client.get(f"/profiles/{profile['id']}")
     assert running.json()["is_running"] is True
 
+    session = client.get(f"/profiles/{profile['id']}/session")
+    assert session.status_code == 200
+    assert session.json()["profile_id"] == profile["id"]
+
     stopped = client.post(f"/profiles/{profile['id']}/stop")
     assert stopped.status_code == 200
-    assert stopped.json()["status"] == "stubbed"
+    assert stopped.json()["status"] == "stopped"
 
     not_running = client.get(f"/profiles/{profile['id']}")
     assert not_running.json()["is_running"] is False
@@ -85,6 +90,13 @@ def test_flows_and_replay_stub() -> None:
     replay = client.post(f"/flows/{flow_id}/replay")
     assert replay.status_code == 200
     assert replay.json()["status"] == "stubbed"
+
+
+def test_anonymity_presets() -> None:
+    response = client.get("/anonymity/presets")
+    assert response.status_code == 200
+    presets = response.json()
+    assert {preset["level"] for preset in presets} == {"low", "medium", "high"}
 
 
 def test_frontend_compatibility_endpoints() -> None:

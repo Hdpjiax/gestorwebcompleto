@@ -37,6 +37,7 @@ export function App() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>({ online: false });
   const [browserUrl, setBrowserUrl] = useState('https://training.portal.local/login');
   const [newProfile, setNewProfile] = useState({ name: '', role: 'Research' as Profile['role'], proxy: '' });
+  const [operationStatus, setOperationStatus] = useState('Ready');
 
   const selectedProfile = useMemo(
     () => profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0],
@@ -92,6 +93,65 @@ export function App() {
         });
       } catch {
         // Local creation remains useful while backend endpoints evolve.
+      }
+    }
+  }
+
+  async function launchSelectedProfile() {
+    if (!selectedProfile) return;
+    setOperationStatus(`Launching ${selectedProfile.name}`);
+
+    if (backendStatus.online) {
+      try {
+        const session = await apiClient.profiles.launch(selectedProfile.id);
+        setProfiles((current) =>
+          current.map((profile) => (profile.id === selectedProfile.id ? { ...profile, status: 'Running' } : profile))
+        );
+        setOperationStatus(`${session.status}: proxy ${session.proxy_port ?? 'pending'}`);
+        return;
+      } catch (error) {
+        setOperationStatus(error instanceof Error ? error.message : 'Launch failed');
+      }
+    }
+
+    setProfiles((current) =>
+      current.map((profile) => (profile.id === selectedProfile.id ? { ...profile, status: 'Running' } : profile))
+    );
+  }
+
+  async function stopSelectedProfile() {
+    if (!selectedProfile) return;
+    setOperationStatus(`Stopping ${selectedProfile.name}`);
+
+    if (backendStatus.online) {
+      try {
+        const session = await apiClient.profiles.stop(selectedProfile.id);
+        setProfiles((current) =>
+          current.map((profile) => (profile.id === selectedProfile.id ? { ...profile, status: 'Ready' } : profile))
+        );
+        setOperationStatus(session.detail);
+        return;
+      } catch (error) {
+        setOperationStatus(error instanceof Error ? error.message : 'Stop failed');
+      }
+    }
+
+    setProfiles((current) =>
+      current.map((profile) => (profile.id === selectedProfile.id ? { ...profile, status: 'Ready' } : profile))
+    );
+  }
+
+  async function updateAnonymity(level: 'low' | 'medium' | 'high') {
+    if (!selectedProfile) return;
+    setOperationStatus(`Applying ${level} anonymity`);
+
+    if (backendStatus.online) {
+      try {
+        const updated = await apiClient.profiles.setAnonymityLevel(selectedProfile.id, level);
+        setProfiles((current) => current.map((profile) => (profile.id === updated.id ? updated : profile)));
+        setOperationStatus(`Applied ${updated.fingerprint}`);
+      } catch (error) {
+        setOperationStatus(error instanceof Error ? error.message : 'Preset update failed');
       }
     }
   }
@@ -152,6 +212,10 @@ export function App() {
             <span>Sync</span>
           </button>
         </header>
+        <div className="operation-strip">
+          <span>{operationStatus}</span>
+          <strong>{selectedProfile?.name ?? 'No profile selected'}</strong>
+        </div>
 
         {activeSection === 'dashboard' && (
           <section className="panel-grid">
@@ -170,7 +234,13 @@ export function App() {
               setSelectedProfileId={setSelectedProfileId}
               compact
             />
-            <BrowserPanel browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} selectedProfile={selectedProfile} />
+            <BrowserPanel
+              browserUrl={browserUrl}
+              launchSelectedProfile={launchSelectedProfile}
+              selectedProfile={selectedProfile}
+              setBrowserUrl={setBrowserUrl}
+              stopSelectedProfile={stopSelectedProfile}
+            />
           </section>
         )}
 
@@ -223,9 +293,16 @@ export function App() {
 
         {activeSection === 'interceptor' && <InterceptorTable requests={requests} />}
         {activeSection === 'browser' && (
-          <BrowserPanel browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} selectedProfile={selectedProfile} full />
+          <BrowserPanel
+            browserUrl={browserUrl}
+            launchSelectedProfile={launchSelectedProfile}
+            selectedProfile={selectedProfile}
+            setBrowserUrl={setBrowserUrl}
+            stopSelectedProfile={stopSelectedProfile}
+            full
+          />
         )}
-        {activeSection === 'anonymity' && <AnonymitySettings selectedProfile={selectedProfile} />}
+        {activeSection === 'anonymity' && <AnonymitySettings selectedProfile={selectedProfile} updateAnonymity={updateAnonymity} />}
       </main>
     </div>
   );
@@ -320,22 +397,26 @@ function InterceptorTable({ requests }: { requests: InterceptedRequest[] }) {
 
 function BrowserPanel({
   browserUrl,
+  launchSelectedProfile,
   setBrowserUrl,
   selectedProfile,
+  stopSelectedProfile,
   full = false
 }: {
   browserUrl: string;
+  launchSelectedProfile?: () => void;
   setBrowserUrl: (url: string) => void;
   selectedProfile?: Profile;
+  stopSelectedProfile?: () => void;
   full?: boolean;
 }) {
   return (
     <section className={full ? 'panel browser-panel full' : 'panel browser-panel'}>
       <div className="browser-toolbar">
-        <button className="icon-button" type="button" title="Launch Camoufox session">
+        <button className="icon-button" onClick={launchSelectedProfile} type="button" title="Launch Camoufox session">
           <Play size={16} />
         </button>
-        <button className="icon-button" type="button" title="Stop session">
+        <button className="icon-button" onClick={stopSelectedProfile} type="button" title="Stop session">
           <Square size={16} />
         </button>
         <input aria-label="Browser URL" value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} />
@@ -349,7 +430,13 @@ function BrowserPanel({
   );
 }
 
-function AnonymitySettings({ selectedProfile }: { selectedProfile?: Profile }) {
+function AnonymitySettings({
+  selectedProfile,
+  updateAnonymity
+}: {
+  selectedProfile?: Profile;
+  updateAnonymity: (level: 'low' | 'medium' | 'high') => void;
+}) {
   const settings = [
     ['WebRTC leak protection', true],
     ['Canvas fingerprint randomization', true],
@@ -366,6 +453,11 @@ function AnonymitySettings({ selectedProfile }: { selectedProfile?: Profile }) {
           <h3>{selectedProfile?.name ?? 'Selected profile'}</h3>
         </div>
         <EyeOff size={19} />
+      </div>
+      <div className="preset-buttons">
+        <button type="button" onClick={() => updateAnonymity('low')}>Level 1</button>
+        <button type="button" onClick={() => updateAnonymity('medium')}>Level 2</button>
+        <button type="button" onClick={() => updateAnonymity('high')}>Level 3</button>
       </div>
       <div className="settings-grid">
         {settings.map(([label, enabled]) => (

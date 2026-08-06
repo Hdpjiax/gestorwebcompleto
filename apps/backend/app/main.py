@@ -13,8 +13,11 @@ from .models import (
     Profile,
     ProfileCreate,
     ProfileUpdate,
+    SessionStatus,
 )
 from .storage import SQLiteStore
+from .services.anonymity_presets import list_presets
+from .services.launcher import LauncherRegistry
 
 
 app = FastAPI(
@@ -24,6 +27,7 @@ app = FastAPI(
 )
 
 store: SQLiteStore | None = None
+launcher = LauncherRegistry()
 
 BUILTIN_FLOWS = [
     Flow(
@@ -108,28 +112,35 @@ def delete_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> Non
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
 
-@app.post("/profiles/{profile_id}/launch", response_model=ActionStatus)
-def launch_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> ActionStatus:
-    profile = db.set_running(profile_id, True)
-    if profile is None:
+@app.post("/profiles/{profile_id}/launch", response_model=SessionStatus)
+def launch_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> SessionStatus:
+    existing = db.get_profile(profile_id)
+    if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return ActionStatus(
-        profile_id=profile_id,
-        status="stubbed",
-        detail="Camoufox launch is intentionally stubbed; no browser process was started.",
-    )
+    profile = Profile.model_validate(existing)
+    session = launcher.launch(profile)
+    db.set_running(profile_id, True)
+    return session
 
 
-@app.post("/profiles/{profile_id}/stop", response_model=ActionStatus)
-def stop_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> ActionStatus:
+@app.post("/profiles/{profile_id}/stop", response_model=SessionStatus)
+def stop_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> SessionStatus:
     profile = db.set_running(profile_id, False)
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return ActionStatus(
+    return launcher.stop(profile_id) or SessionStatus(
         profile_id=profile_id,
-        status="stubbed",
-        detail="Camoufox stop is intentionally stubbed; no browser process was terminated.",
+        status="stopped",
+        browser_pid=None,
+        proxy_port=None,
+        user_data_dir=str(launcher.profiles_dir / str(profile_id)),
+        detail="No active runtime session was registered.",
     )
+
+
+@app.get("/profiles/{profile_id}/session", response_model=SessionStatus | None)
+def get_profile_session(profile_id: int) -> SessionStatus | None:
+    return launcher.get(profile_id)
 
 
 @app.put("/profiles/{profile_id}/anonymity-level", response_model=Profile)
@@ -142,6 +153,11 @@ def set_anonymity_level(
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     return profile
+
+
+@app.get("/anonymity/presets")
+def get_anonymity_presets() -> list:
+    return list_presets()
 
 
 @app.get("/flows", response_model=list[Flow])

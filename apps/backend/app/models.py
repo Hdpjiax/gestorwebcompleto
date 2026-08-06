@@ -11,10 +11,24 @@ class AnonymityLevel(str, Enum):
     high = "high"
 
 
+class ProxyScheme(str, Enum):
+    http = "http"
+    https = "https"
+    socks5 = "socks5"
+
+
+class ProxyConfig(BaseModel):
+    scheme: ProxyScheme = ProxyScheme.http
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+    username: str | None = Field(default=None, max_length=255)
+
+
 class ProfileBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     anonymity_level: AnonymityLevel = AnonymityLevel.medium
+    proxy: ProxyConfig | None = None
     camoufox_config: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -26,6 +40,7 @@ class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     anonymity_level: AnonymityLevel | None = None
+    proxy: ProxyConfig | None = None
     camoufox_config: dict[str, Any] | None = None
 
 
@@ -46,6 +61,24 @@ class ActionStatus(BaseModel):
     profile_id: int
     status: str
     detail: str
+
+
+class SessionStatus(BaseModel):
+    profile_id: int
+    status: str
+    browser_pid: int | None = None
+    proxy_port: int | None = None
+    user_data_dir: str
+    detail: str
+
+
+class AnonymityPreset(BaseModel):
+    level: AnonymityLevel
+    label: str
+    requires_proxy: bool
+    camoufox_options: dict[str, Any]
+    firefox_prefs: dict[str, Any]
+    notes: list[str]
 
 
 class Flow(BaseModel):

@@ -43,6 +43,7 @@ class SQLiteStore:
                     name TEXT NOT NULL,
                     description TEXT,
                     anonymity_level TEXT NOT NULL,
+                    proxy TEXT,
                     camoufox_config TEXT NOT NULL,
                     is_running INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
@@ -50,6 +51,9 @@ class SQLiteStore:
                 )
                 """
             )
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
+            if "proxy" not in columns:
+                conn.execute("ALTER TABLE profiles ADD COLUMN proxy TEXT")
 
     def list_profiles(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -67,13 +71,14 @@ class SQLiteStore:
             cursor = conn.execute(
                 """
                 INSERT INTO profiles (
-                    name, description, anonymity_level, camoufox_config, is_running, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 0, ?, ?)
+                    name, description, anonymity_level, proxy, camoufox_config, is_running, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
                 """,
                 (
                     payload.name,
                     payload.description,
                     payload.anonymity_level.value,
+                    payload.proxy.model_dump_json() if payload.proxy else None,
                     json.dumps(payload.camoufox_config),
                     now,
                     now,
@@ -100,6 +105,8 @@ class SQLiteStore:
             fields.append(f"{key} = ?")
             if key == "camoufox_config":
                 params.append(json.dumps(value or {}))
+            elif key == "proxy":
+                params.append(value.model_dump_json() if value else None)
             elif key == "anonymity_level" and isinstance(value, AnonymityLevel):
                 params.append(value.value)
             else:
@@ -135,5 +142,6 @@ class SQLiteStore:
     def _row_to_profile(row: sqlite3.Row) -> dict[str, Any]:
         data = dict(row)
         data["camoufox_config"] = json.loads(data["camoufox_config"])
+        data["proxy"] = json.loads(data["proxy"]) if data.get("proxy") else None
         data["is_running"] = bool(data["is_running"])
         return data
