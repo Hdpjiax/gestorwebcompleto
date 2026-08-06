@@ -42,6 +42,8 @@ class SQLiteStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     description TEXT,
+                    scope_statement TEXT NOT NULL DEFAULT 'Authorized local lab',
+                    allowed_hosts TEXT NOT NULL DEFAULT '["localhost","127.0.0.1"]',
                     anonymity_level TEXT NOT NULL,
                     proxy TEXT,
                     camoufox_config TEXT NOT NULL,
@@ -54,6 +56,10 @@ class SQLiteStore:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
             if "proxy" not in columns:
                 conn.execute("ALTER TABLE profiles ADD COLUMN proxy TEXT")
+            if "scope_statement" not in columns:
+                conn.execute("ALTER TABLE profiles ADD COLUMN scope_statement TEXT NOT NULL DEFAULT 'Authorized local lab'")
+            if "allowed_hosts" not in columns:
+                conn.execute("ALTER TABLE profiles ADD COLUMN allowed_hosts TEXT NOT NULL DEFAULT '[\"localhost\",\"127.0.0.1\"]'")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS http_flows (
@@ -94,12 +100,15 @@ class SQLiteStore:
             cursor = conn.execute(
                 """
                 INSERT INTO profiles (
-                    name, description, anonymity_level, proxy, camoufox_config, is_running, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                    name, description, scope_statement, allowed_hosts, anonymity_level, proxy,
+                    camoufox_config, is_running, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
                 (
                     payload.name,
                     payload.description,
+                    payload.scope_statement,
+                    json.dumps(payload.allowed_hosts),
                     payload.anonymity_level.value,
                     payload.proxy.model_dump_json() if payload.proxy else None,
                     json.dumps(payload.camoufox_config),
@@ -128,6 +137,8 @@ class SQLiteStore:
             fields.append(f"{key} = ?")
             if key == "camoufox_config":
                 params.append(json.dumps(value or {}))
+            elif key == "allowed_hosts":
+                params.append(json.dumps(value or []))
             elif key == "proxy":
                 params.append(value.model_dump_json() if value else None)
             elif key == "anonymity_level" and isinstance(value, AnonymityLevel):
@@ -218,6 +229,7 @@ class SQLiteStore:
     def _row_to_profile(row: sqlite3.Row) -> dict[str, Any]:
         data = dict(row)
         data["camoufox_config"] = json.loads(data["camoufox_config"])
+        data["allowed_hosts"] = json.loads(data["allowed_hosts"])
         data["proxy"] = json.loads(data["proxy"]) if data.get("proxy") else None
         data["is_running"] = bool(data["is_running"])
         return data

@@ -23,6 +23,8 @@ def create_profile(name: str = "Training Profile") -> dict:
         json={
             "name": name,
             "description": "Profile for controlled exercises",
+            "scope_statement": "Authorized local lab only",
+            "allowed_hosts": ["training.portal.local", "localhost", "127.0.0.1"],
             "anonymity_level": "medium",
             "camoufox_config": {"headless": True},
         },
@@ -43,6 +45,7 @@ def test_profile_crud_and_anonymity_level() -> None:
     fetched = client.get(f"/profiles/{profile['id']}")
     assert fetched.status_code == 200
     assert fetched.json()["name"] == "Training Profile"
+    assert "training.portal.local" in fetched.json()["allowed_hosts"]
 
     updated = client.put(
         f"/profiles/{profile['id']}/anonymity-level",
@@ -167,10 +170,11 @@ def test_out_of_scope_flow_blocks_replay() -> None:
             "host": "external.example",
             "path": "/login",
             "status_code": 200,
-            "in_scope": False,
+            "in_scope": True,
         },
     )
     assert created.status_code == 201
+    assert created.json()["in_scope"] is False
     assert created.json()["replayable"] is False
 
     replay = client.post(f"/interceptor/flows/{created.json()['id']}/replay")

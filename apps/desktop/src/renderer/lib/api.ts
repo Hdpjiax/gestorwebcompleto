@@ -9,6 +9,8 @@ export type Profile = {
   name: string;
   role: 'Research' | 'Training' | 'Audit' | 'OSINT';
   proxy: string;
+  scopeStatement: string;
+  allowedHosts: string[];
   fingerprint: string;
   status: 'Ready' | 'Running' | 'Paused';
   riskScore: number;
@@ -27,6 +29,8 @@ type BackendProfile = {
   id: number;
   name: string;
   description?: string | null;
+  scope_statement: string;
+  allowed_hosts: string[];
   anonymity_level: 'low' | 'medium' | 'high';
   camoufox_config?: Record<string, unknown>;
   is_running: boolean;
@@ -84,12 +88,14 @@ export const apiClient = {
       const profiles = await request<BackendProfile[]>('/profiles');
       return profiles.map(toUiProfile);
     },
-    create: (profile: Pick<Profile, 'name' | 'role' | 'proxy'>) =>
+    create: (profile: Pick<Profile, 'name' | 'role' | 'proxy' | 'scopeStatement' | 'allowedHosts'>) =>
       request<BackendProfile>('/profiles', {
         method: 'POST',
         body: JSON.stringify({
           name: profile.name,
           description: `${profile.role} profile`,
+          scope_statement: profile.scopeStatement,
+          allowed_hosts: profile.allowedHosts,
           camoufox_config: { proxy: profile.proxy }
         })
       }).then(toUiProfile),
@@ -126,6 +132,8 @@ function toUiProfile(profile: BackendProfile): Profile {
     name: profile.name,
     role: 'Audit',
     proxy: typeof proxy === 'string' && proxy.length > 0 ? proxy : 'direct',
+    scopeStatement: profile.scope_statement,
+    allowedHosts: profile.allowed_hosts,
     fingerprint: `Camoufox ${profile.anonymity_level} preset`,
     status: profile.is_running ? 'Running' : 'Ready',
     riskScore: profile.anonymity_level === 'high' ? 18 : profile.anonymity_level === 'medium' ? 38 : 62

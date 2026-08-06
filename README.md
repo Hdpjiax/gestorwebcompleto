@@ -9,7 +9,7 @@ El proyecto nace con una regla de producto clara: todo flujo debe estar orientad
 ```text
 apps/
   backend/          # Aplicacion futura del backend
-agents/            # Stubs ejecutables para agentes CrewAI/AutoGen
+agents/            # Herramientas internas de desarrollo, no parte del gestor final
 docs/              # Arquitectura, etica, operaciones y runbooks
 scripts/           # Setup, build y validaciones locales
 .github/workflows/ # CI basico
@@ -24,11 +24,13 @@ cp .env.example .env
 ./scripts/test.sh
 ```
 
-Los scripts son intencionalmente conservadores: validan el repo, preparan un entorno Python local para los agentes y solo ejecutan pasos de Node/Python cuando detectan los archivos correspondientes.
+Los scripts son intencionalmente conservadores: validan el repo, preparan el backend/frontend local y solo ejecutan pasos de Node/Python cuando detectan los archivos correspondientes.
 
-## Agentes
+## Agentes de desarrollo
 
-Los stubs de `agents/` funcionan sin instalar CrewAI o AutoGen. Si esas librerias estan disponibles, el codigo puede extenderse sin cambiar el contrato de CLI.
+Los stubs de `agents/` son auxiliares independientes para planificar, revisar y coordinar la construccion de este repositorio. No forman parte del gestor web, no se ejecutan dentro de la app y no deben exponerse en la UI ni en el runtime del producto.
+
+Funcionan sin instalar CrewAI o AutoGen. Si esas librerias estan disponibles, el codigo puede extenderse sin cambiar el contrato de CLI.
 
 ```bash
 python3 agents/crewai_stub.py --objective "Revisar checklist defensivo de un laboratorio autorizado"

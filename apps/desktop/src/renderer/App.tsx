@@ -36,7 +36,13 @@ export function App() {
   const [selectedProfileId, setSelectedProfileId] = useState(mockProfiles[0].id);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>({ online: false });
   const [browserUrl, setBrowserUrl] = useState('https://training.portal.local/login');
-  const [newProfile, setNewProfile] = useState({ name: '', role: 'Research' as Profile['role'], proxy: '' });
+  const [newProfile, setNewProfile] = useState({
+    name: '',
+    role: 'Research' as Profile['role'],
+    proxy: '',
+    scopeStatement: 'Authorized local lab only',
+    allowedHosts: 'localhost, 127.0.0.1'
+  });
   const [operationStatus, setOperationStatus] = useState('Ready');
 
   const selectedProfile = useMemo(
@@ -75,6 +81,8 @@ export function App() {
       name: newProfile.name.trim() || 'New Profile',
       role: newProfile.role,
       proxy: newProfile.proxy.trim() || 'direct',
+      scopeStatement: newProfile.scopeStatement.trim() || 'Authorized local lab only',
+      allowedHosts: parseAllowedHosts(newProfile.allowedHosts),
       fingerprint: 'Camoufox custom / pending launch',
       status: 'Ready',
       riskScore: 22
@@ -82,14 +90,22 @@ export function App() {
 
     setProfiles((current) => [profile, ...current]);
     setSelectedProfileId(profile.id);
-    setNewProfile({ name: '', role: 'Research', proxy: '' });
+    setNewProfile({
+      name: '',
+      role: 'Research',
+      proxy: '',
+      scopeStatement: 'Authorized local lab only',
+      allowedHosts: 'localhost, 127.0.0.1'
+    });
 
     if (backendStatus.online) {
       try {
         await apiClient.profiles.create({
           name: profile.name,
           role: profile.role,
-          proxy: profile.proxy
+          proxy: profile.proxy,
+          scopeStatement: profile.scopeStatement,
+          allowedHosts: profile.allowedHosts
         });
       } catch {
         // Local creation remains useful while backend endpoints evolve.
@@ -298,6 +314,21 @@ export function App() {
                   onChange={(event) => setNewProfile({ ...newProfile, proxy: event.target.value })}
                 />
               </label>
+              <label>
+                Scope statement
+                <input
+                  value={newProfile.scopeStatement}
+                  onChange={(event) => setNewProfile({ ...newProfile, scopeStatement: event.target.value })}
+                />
+              </label>
+              <label>
+                Allowed hosts
+                <input
+                  placeholder="localhost, 127.0.0.1, *.internal.local"
+                  value={newProfile.allowedHosts}
+                  onChange={(event) => setNewProfile({ ...newProfile, allowedHosts: event.target.value })}
+                />
+              </label>
               <button className="primary-button" type="submit">
                 <Plus size={17} />
                 Create local profile
@@ -365,6 +396,7 @@ function ProfileManager({
             <span>
               <strong>{profile.name}</strong>
               <small>{profile.fingerprint}</small>
+              <small>{profile.allowedHosts.join(', ')}</small>
             </span>
             <span className={`pill ${profile.status.toLowerCase()}`}>{profile.status}</span>
           </button>
@@ -372,6 +404,14 @@ function ProfileManager({
       </div>
     </section>
   );
+}
+
+function parseAllowedHosts(value: string): string[] {
+  const hosts = value
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
+  return hosts.length > 0 ? hosts : ['localhost', '127.0.0.1'];
 }
 
 function InterceptorTable({

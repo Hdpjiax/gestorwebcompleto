@@ -1,8 +1,10 @@
-# Diseno de Agentes
+# Diseno de Agentes de Desarrollo
+
+Estos agentes no son una funcionalidad del gestor web. Son herramientas externas para ayudar a construir, revisar y validar el repositorio durante desarrollo.
 
 ## Contrato inicial
 
-Los agentes deben actuar como asistentes de planificacion y revision, no como motores ofensivos autonomos.
+Los agentes deben actuar como asistentes de planificacion y revision del proyecto, no como runtime del producto ni como motores ofensivos autonomos.
 
 Entrada minima:
 
@@ -39,7 +41,7 @@ Si el objetivo sugiere actividad no autorizada o evasion maliciosa, el agente de
 
 ## Checklist operativo
 
-La lista completa para fase 2 vive en [`docs/agent-checklist.md`](agent-checklist.md). Todo agente debe aplicarla antes de recomendar o ejecutar tareas relacionadas con Camoufox, mitmproxy, interceptacion, replay o manejo de evidencias.
+La lista completa para fase 2 vive en [`docs/agent-checklist.md`](agent-checklist.md). Todo agente de desarrollo debe aplicarla antes de recomendar o ejecutar tareas sobre el codigo relacionado con Camoufox, mitmproxy, interceptacion, replay o manejo de evidencias.
 
 Puntos minimos:
 

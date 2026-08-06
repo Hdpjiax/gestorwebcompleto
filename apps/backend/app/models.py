@@ -27,6 +27,8 @@ class ProxyConfig(BaseModel):
 class ProfileBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
+    scope_statement: str = Field(default="Authorized local lab", min_length=1, max_length=1000)
+    allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     anonymity_level: AnonymityLevel = AnonymityLevel.medium
     proxy: ProxyConfig | None = None
     camoufox_config: dict[str, Any] = Field(default_factory=dict)
@@ -39,6 +41,8 @@ class ProfileCreate(ProfileBase):
 class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
+    scope_statement: str | None = Field(default=None, min_length=1, max_length=1000)
+    allowed_hosts: list[str] | None = None
     anonymity_level: AnonymityLevel | None = None
     proxy: ProxyConfig | None = None
     camoufox_config: dict[str, Any] | None = None

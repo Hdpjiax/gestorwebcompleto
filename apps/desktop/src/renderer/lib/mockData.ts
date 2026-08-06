@@ -6,6 +6,8 @@ export const mockProfiles: Profile[] = [
     name: 'OSINT Lab',
     role: 'OSINT',
     proxy: 'socks5://127.0.0.1:9050',
+    scopeStatement: 'Authorized local lab only',
+    allowedHosts: ['training.portal.local', 'localhost'],
     fingerprint: 'Camoufox hardened / Linux x64',
     status: 'Running',
     riskScore: 18
@@ -15,6 +17,8 @@ export const mockProfiles: Profile[] = [
     name: 'Training Sandbox',
     role: 'Training',
     proxy: 'direct',
+    scopeStatement: 'Training sandbox traffic only',
+    allowedHosts: ['training.portal.local', 'api.training.portal.local'],
     fingerprint: 'Camoufox baseline / Windows 11',
     status: 'Ready',
     riskScore: 34
@@ -24,6 +28,8 @@ export const mockProfiles: Profile[] = [
     name: 'Client Audit',
     role: 'Audit',
     proxy: 'http://10.10.0.40:8080',
+    scopeStatement: 'Client staging audit with written authorization',
+    allowedHosts: ['api.audit.test'],
     fingerprint: 'Camoufox strict / macOS ARM',
     status: 'Paused',
     riskScore: 11

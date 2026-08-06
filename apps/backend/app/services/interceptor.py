@@ -10,11 +10,14 @@ class InterceptorService:
         self.store = store
 
     def record_flow(self, payload: HttpFlowCreate) -> HttpFlow:
+        profile = self.store.get_profile(payload.profile_id)
+        in_scope = payload.in_scope and _host_allowed(payload.host, profile["allowed_hosts"] if profile else [])
         redacted = payload.model_copy(
             update={
-                "request_headers": self._redact_headers(payload.request_headers),
-                "response_headers": self._redact_headers(payload.response_headers),
-                "replayable": payload.in_scope,
+                "request_headers": _redact_headers(payload.request_headers),
+                "response_headers": _redact_headers(payload.response_headers),
+                "in_scope": in_scope,
+                "replayable": in_scope,
             }
         )
         return HttpFlow.model_validate(self.store.create_http_flow(redacted))
@@ -52,9 +55,22 @@ class InterceptorService:
             "detail": f"Replay validated for {flow['method']} {flow['host']}{flow['path']} with {len(changes)} override(s).",
         }
 
-    @staticmethod
-    def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
-        return {
-            key: "[redacted]" if key.lower() in SENSITIVE_HEADERS else value
-            for key, value in headers.items()
-        }
+
+def _host_allowed(host: str, allowed_hosts: list[str]) -> bool:
+    normalized = host.lower().strip()
+    for allowed in allowed_hosts:
+        rule = allowed.lower().strip()
+        if not rule:
+            continue
+        if normalized == rule:
+            return True
+        if rule.startswith("*.") and normalized.endswith(rule[1:]):
+            return True
+    return False
+
+
+def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    return {
+        key: "[redacted]" if key.lower() in SENSITIVE_HEADERS else value
+        for key, value in headers.items()
+    }
