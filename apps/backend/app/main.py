@@ -9,14 +9,18 @@ from .models import (
     FlowReplayStatus,
     BrowserOpenRequest,
     BrowserOpenStatus,
+    HttpFlow,
+    HttpFlowCreate,
     InterceptedRequest,
     Profile,
     ProfileCreate,
     ProfileUpdate,
+    ReplayRequest,
     SessionStatus,
 )
 from .storage import SQLiteStore
 from .services.anonymity_presets import list_presets
+from .services.interceptor import InterceptorService
 from .services.launcher import LauncherRegistry
 
 
@@ -176,9 +180,34 @@ def replay_flow(flow_id: str) -> FlowReplayStatus:
     )
 
 
+@app.get("/interceptor/flows", response_model=list[HttpFlow])
+def list_http_flows(profile_id: int | None = None, db: SQLiteStore = Depends(get_store)) -> list[HttpFlow]:
+    return InterceptorService(db).list_flows(profile_id)
+
+
+@app.post("/interceptor/flows", response_model=HttpFlow, status_code=status.HTTP_201_CREATED)
+def record_http_flow(payload: HttpFlowCreate, db: SQLiteStore = Depends(get_store)) -> HttpFlow:
+    if db.get_profile(payload.profile_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return InterceptorService(db).record_flow(payload)
+
+
 @app.get("/interceptor/requests", response_model=list[InterceptedRequest])
-def list_interceptor_requests() -> list[InterceptedRequest]:
-    return BUILTIN_REQUESTS
+def list_interceptor_requests(profile_id: int | None = None, db: SQLiteStore = Depends(get_store)) -> list[InterceptedRequest]:
+    rows = InterceptorService(db).list_request_rows(profile_id)
+    return rows or BUILTIN_REQUESTS
+
+
+@app.post("/interceptor/flows/{flow_id}/replay", response_model=FlowReplayStatus)
+def replay_http_flow(
+    flow_id: str,
+    payload: ReplayRequest | None = None,
+    db: SQLiteStore = Depends(get_store),
+) -> FlowReplayStatus:
+    result = InterceptorService(db).replay(flow_id, payload)
+    if result["status"] == "missing":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result["detail"])
+    return FlowReplayStatus(flow_id=flow_id, status=result["status"], detail=result["detail"])
 
 
 @app.post("/browser/open", response_model=BrowserOpenStatus)

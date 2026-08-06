@@ -94,6 +94,35 @@ class FlowReplayStatus(BaseModel):
     detail: str
 
 
+class HttpFlowCreate(BaseModel):
+    profile_id: int
+    method: str = Field(min_length=1, max_length=12)
+    scheme: str = Field(default="https", max_length=12)
+    host: str = Field(min_length=1, max_length=255)
+    path: str = Field(default="/", max_length=2048)
+    status_code: int | None = Field(default=None, ge=100, le=599)
+    request_headers: dict[str, str] = Field(default_factory=dict)
+    response_headers: dict[str, str] = Field(default_factory=dict)
+    request_body_preview: str | None = Field(default=None, max_length=4096)
+    response_body_preview: str | None = Field(default=None, max_length=4096)
+    resource_type: str = Field(default="xhr", max_length=32)
+    in_scope: bool = True
+
+
+class HttpFlow(HttpFlowCreate):
+    id: str
+    captured_at: datetime
+    replayable: bool = True
+    intercept_decision: str = "forward"
+
+
+class ReplayRequest(BaseModel):
+    method: str | None = Field(default=None, max_length=12)
+    path: str | None = Field(default=None, max_length=2048)
+    headers: dict[str, str] | None = None
+    body_preview: str | None = Field(default=None, max_length=4096)
+
+
 class InterceptedRequest(BaseModel):
     id: str
     method: str

@@ -39,3 +39,14 @@ Para convertir los stubs en integraciones reales, usar estos documentos como ent
 - [`docs/agent-checklist.md`](agent-checklist.md): controles de agentes, QA y limites eticos.
 
 La fase 2 debe operar por defecto contra `127.0.0.1` y activos explicitamente autorizados. No instalar certificados CA en almacenes globales ni usar perfiles personales como datos de prueba.
+
+### Interceptor persistente
+
+Contrato inicial disponible:
+
+- `POST /interceptor/flows`: registra un flow capturado por un addon o fixture controlado.
+- `GET /interceptor/flows?profile_id=<id>`: devuelve flows crudos por perfil.
+- `GET /interceptor/requests?profile_id=<id>`: devuelve filas normalizadas para la UI.
+- `POST /interceptor/flows/{flow_id}/replay`: valida replay manual dentro de alcance; la ejecucion de red real sigue stubbed.
+
+Las cabeceras sensibles (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) se redactan antes de persistir. Los flows `in_scope=false` se guardan como evidencia minima y bloquean replay.

@@ -156,6 +156,21 @@ export function App() {
     }
   }
 
+  async function replayRequest(flowId: string) {
+    setOperationStatus(`Validating replay ${flowId}`);
+    if (!backendStatus.online) {
+      setOperationStatus('Replay requires backend online');
+      return;
+    }
+
+    try {
+      const result = await apiClient.traffic.replay(flowId);
+      setOperationStatus(`${result.status}: ${result.detail}`);
+    } catch (error) {
+      setOperationStatus(error instanceof Error ? error.message : 'Replay failed');
+    }
+  }
+
   const runningProfiles = profiles.filter((profile) => profile.status === 'Running').length;
   const blockedRequests = requests.filter((request) => request.status >= 400).length;
   const averageRisk = Math.round(
@@ -291,7 +306,7 @@ export function App() {
           </section>
         )}
 
-        {activeSection === 'interceptor' && <InterceptorTable requests={requests} />}
+        {activeSection === 'interceptor' && <InterceptorTable replayRequest={replayRequest} requests={requests} />}
         {activeSection === 'browser' && (
           <BrowserPanel
             browserUrl={browserUrl}
@@ -359,7 +374,13 @@ function ProfileManager({
   );
 }
 
-function InterceptorTable({ requests }: { requests: InterceptedRequest[] }) {
+function InterceptorTable({
+  replayRequest,
+  requests
+}: {
+  replayRequest: (flowId: string) => void;
+  requests: InterceptedRequest[];
+}) {
   return (
     <section className="panel table-panel">
       <div className="panel-heading">
@@ -378,6 +399,7 @@ function InterceptorTable({ requests }: { requests: InterceptedRequest[] }) {
           <span>Status</span>
           <span>Type</span>
           <span>Profile</span>
+          <span>Action</span>
         </div>
         {requests.map((request) => (
           <div className="table-row" key={request.id} role="row">
@@ -388,6 +410,7 @@ function InterceptorTable({ requests }: { requests: InterceptedRequest[] }) {
             <span className={request.status >= 400 ? 'status-code blocked' : 'status-code'}>{request.status}</span>
             <span>{request.type}</span>
             <span>{request.profile}</span>
+            <button className="table-action" onClick={() => replayRequest(request.id)} type="button">Replay</button>
           </div>
         ))}
       </div>

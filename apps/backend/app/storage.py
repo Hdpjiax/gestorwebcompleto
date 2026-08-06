@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .models import AnonymityLevel, ProfileCreate, ProfileUpdate
+from .models import AnonymityLevel, HttpFlowCreate, ProfileCreate, ProfileUpdate
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "backend.sqlite3"
@@ -54,6 +54,29 @@ class SQLiteStore:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
             if "proxy" not in columns:
                 conn.execute("ALTER TABLE profiles ADD COLUMN proxy TEXT")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS http_flows (
+                    id TEXT PRIMARY KEY,
+                    profile_id INTEGER NOT NULL,
+                    method TEXT NOT NULL,
+                    scheme TEXT NOT NULL,
+                    host TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    status_code INTEGER,
+                    request_headers TEXT NOT NULL,
+                    response_headers TEXT NOT NULL,
+                    request_body_preview TEXT,
+                    response_body_preview TEXT,
+                    resource_type TEXT NOT NULL,
+                    in_scope INTEGER NOT NULL,
+                    replayable INTEGER NOT NULL,
+                    intercept_decision TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    FOREIGN KEY(profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+                """
+            )
 
     def list_profiles(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -138,10 +161,72 @@ class SQLiteStore:
     def set_anonymity_level(self, profile_id: int, level: AnonymityLevel) -> dict[str, Any] | None:
         return self.update_profile(profile_id, ProfileUpdate(anonymity_level=level))
 
+    def create_http_flow(self, payload: HttpFlowCreate) -> dict[str, Any]:
+        flow_id = f"flow-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        captured_at = utc_now_iso()
+        replayable = bool(payload.in_scope)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO http_flows (
+                    id, profile_id, method, scheme, host, path, status_code,
+                    request_headers, response_headers, request_body_preview, response_body_preview,
+                    resource_type, in_scope, replayable, intercept_decision, captured_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    flow_id,
+                    payload.profile_id,
+                    payload.method.upper(),
+                    payload.scheme,
+                    payload.host,
+                    payload.path,
+                    payload.status_code,
+                    json.dumps(payload.request_headers),
+                    json.dumps(payload.response_headers),
+                    payload.request_body_preview,
+                    payload.response_body_preview,
+                    payload.resource_type,
+                    1 if payload.in_scope else 0,
+                    1 if replayable else 0,
+                    "forward" if payload.in_scope else "out_of_scope",
+                    captured_at,
+                ),
+            )
+        flow = self.get_http_flow(flow_id)
+        if flow is None:
+            raise RuntimeError("flow was not persisted")
+        return flow
+
+    def list_http_flows(self, profile_id: int | None = None) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            if profile_id is None:
+                rows = conn.execute("SELECT * FROM http_flows ORDER BY captured_at DESC").fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM http_flows WHERE profile_id = ? ORDER BY captured_at DESC",
+                    (profile_id,),
+                ).fetchall()
+            return [self._row_to_http_flow(row) for row in rows]
+
+    def get_http_flow(self, flow_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM http_flows WHERE id = ?", (flow_id,)).fetchone()
+            return self._row_to_http_flow(row) if row else None
+
     @staticmethod
     def _row_to_profile(row: sqlite3.Row) -> dict[str, Any]:
         data = dict(row)
         data["camoufox_config"] = json.loads(data["camoufox_config"])
         data["proxy"] = json.loads(data["proxy"]) if data.get("proxy") else None
         data["is_running"] = bool(data["is_running"])
+        return data
+
+    @staticmethod
+    def _row_to_http_flow(row: sqlite3.Row) -> dict[str, Any]:
+        data = dict(row)
+        data["request_headers"] = json.loads(data["request_headers"])
+        data["response_headers"] = json.loads(data["response_headers"])
+        data["in_scope"] = bool(data["in_scope"])
+        data["replayable"] = bool(data["replayable"])
         return data

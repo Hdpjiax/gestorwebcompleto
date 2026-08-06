@@ -102,7 +102,12 @@ export const apiClient = {
       }).then(toUiProfile)
   },
   traffic: {
-    list: () => request<InterceptedRequest[]>('/interceptor/requests')
+    list: () => request<InterceptedRequest[]>('/interceptor/requests'),
+    replay: (flowId: string) =>
+      request<{ flow_id: string; status: string; detail: string }>(`/interceptor/flows/${flowId}/replay`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      })
   },
   browser: {
     open: (profileId: string, url: string) =>

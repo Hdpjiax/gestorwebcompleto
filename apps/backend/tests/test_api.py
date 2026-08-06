@@ -112,6 +112,61 @@ def test_frontend_compatibility_endpoints() -> None:
     assert browser.json()["status"] == "stubbed"
 
 
+def test_record_http_flow_redacts_sensitive_headers_and_replays() -> None:
+    profile = create_profile("Intercepted")
+    created = client.post(
+        "/interceptor/flows",
+        json={
+            "profile_id": profile["id"],
+            "method": "GET",
+            "scheme": "https",
+            "host": "training.portal.local",
+            "path": "/account",
+            "status_code": 200,
+            "request_headers": {"Authorization": "Bearer secret", "Accept": "application/json"},
+            "response_headers": {"Set-Cookie": "sid=secret", "Content-Type": "application/json"},
+            "resource_type": "xhr",
+        },
+    )
+    assert created.status_code == 201
+    flow = created.json()
+    assert flow["request_headers"]["Authorization"] == "[redacted]"
+    assert flow["response_headers"]["Set-Cookie"] == "[redacted]"
+
+    listed = client.get(f"/interceptor/flows?profile_id={profile['id']}")
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == flow["id"]
+
+    requests = client.get(f"/interceptor/requests?profile_id={profile['id']}")
+    assert requests.status_code == 200
+    assert requests.json()[0]["host"] == "training.portal.local"
+
+    replay = client.post(f"/interceptor/flows/{flow['id']}/replay", json={"headers": {"X-Lab": "ok"}})
+    assert replay.status_code == 200
+    assert replay.json()["status"] == "stubbed"
+
+
+def test_out_of_scope_flow_blocks_replay() -> None:
+    profile = create_profile("Out of scope")
+    created = client.post(
+        "/interceptor/flows",
+        json={
+            "profile_id": profile["id"],
+            "method": "POST",
+            "host": "external.example",
+            "path": "/login",
+            "status_code": 200,
+            "in_scope": False,
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["replayable"] is False
+
+    replay = client.post(f"/interceptor/flows/{created.json()['id']}/replay")
+    assert replay.status_code == 200
+    assert replay.json()["status"] == "blocked"
+
+
 def test_flow_websocket_echo() -> None:
     with client.websocket_connect("/ws/flows/123") as websocket:
         connected = websocket.receive_json()
