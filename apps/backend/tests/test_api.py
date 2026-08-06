@@ -63,8 +63,8 @@ def test_launch_stop_stubs() -> None:
 
     launched = client.post(f"/profiles/{profile['id']}/launch")
     assert launched.status_code == 200
-    assert launched.json()["status"] == "stubbed"
-    assert launched.json()["proxy_port"] == 9000 + profile["id"]
+    assert launched.json()["status"] in {"stubbed", "prepared"}
+    assert launched.json()["proxy_port"] >= 9100 + profile["id"]
 
     running = client.get(f"/profiles/{profile['id']}")
     assert running.json()["is_running"] is True
@@ -72,6 +72,11 @@ def test_launch_stop_stubs() -> None:
     session = client.get(f"/profiles/{profile['id']}/session")
     assert session.status_code == 200
     assert session.json()["profile_id"] == profile["id"]
+
+    proxy = client.get(f"/profiles/{profile['id']}/proxy")
+    assert proxy.status_code == 200
+    assert proxy.json()["profile_id"] == profile["id"]
+    assert proxy.json()["port"] == launched.json()["proxy_port"]
 
     stopped = client.post(f"/profiles/{profile['id']}/stop")
     assert stopped.status_code == 200

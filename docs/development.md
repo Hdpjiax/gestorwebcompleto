@@ -50,3 +50,18 @@ Contrato inicial disponible:
 - `POST /interceptor/flows/{flow_id}/replay`: valida replay manual dentro de alcance; la ejecucion de red real sigue stubbed.
 
 Las cabeceras sensibles (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) se redactan antes de persistir. Los flows `in_scope=false` se guardan como evidencia minima y bloquean replay.
+
+### Proxy local
+
+El launcher prepara un proxy por perfil mediante `ProxyOrchestrator`:
+
+- Reserva puertos locales desde `GESTOR_PROXY_BASE_PORT` (`9100` por defecto).
+- Usa `mitmdump --listen-host 127.0.0.1 --listen-port <port> -s apps/backend/app/mitm_addons/capture_addon.py`.
+- Si `mitmdump` no existe, devuelve estado `stubbed` y mantiene la UI operativa.
+- El addon publica flows al backend en `GESTOR_BACKEND_URL` y pasa `GESTOR_PROFILE_ID` por entorno.
+
+Esto permite desarrollar y probar la UI sin instalar mitmproxy. Para activar captura real:
+
+```bash
+apps/backend/.venv/bin/python -m pip install -r apps/backend/requirements-runtime.txt
+```

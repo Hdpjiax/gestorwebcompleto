@@ -15,6 +15,7 @@ from .models import (
     Profile,
     ProfileCreate,
     ProfileUpdate,
+    ProxyStatus,
     ReplayRequest,
     SessionStatus,
 )
@@ -145,6 +146,11 @@ def stop_profile(profile_id: int, db: SQLiteStore = Depends(get_store)) -> Sessi
 @app.get("/profiles/{profile_id}/session", response_model=SessionStatus | None)
 def get_profile_session(profile_id: int) -> SessionStatus | None:
     return launcher.get(profile_id)
+
+
+@app.get("/profiles/{profile_id}/proxy", response_model=ProxyStatus | None)
+def get_profile_proxy(profile_id: int) -> ProxyStatus | None:
+    return launcher.proxy_orchestrator.get(profile_id)
 
 
 @app.put("/profiles/{profile_id}/anonymity-level", response_model=Profile)

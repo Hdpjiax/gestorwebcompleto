@@ -72,6 +72,15 @@ class SessionStatus(BaseModel):
     detail: str
 
 
+class ProxyStatus(BaseModel):
+    profile_id: int
+    status: str
+    port: int
+    pid: int | None = None
+    addon_path: str | None = None
+    detail: str
+
+
 class AnonymityPreset(BaseModel):
     level: AnonymityLevel
     label: str
