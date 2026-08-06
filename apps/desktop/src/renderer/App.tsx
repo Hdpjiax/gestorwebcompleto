@@ -187,6 +187,24 @@ export function App() {
     }
   }
 
+  async function decideRequest(flowId: string, decision: 'forward' | 'drop' | 'replay') {
+    setOperationStatus(`${decision} ${flowId}`);
+    if (!backendStatus.online) {
+      setOperationStatus('Interceptor decisions require backend online');
+      return;
+    }
+
+    try {
+      const result = await apiClient.traffic.decide(flowId, decision);
+      setOperationStatus(`Decision saved: ${result.decision}`);
+      if (decision === 'replay') {
+        await replayRequest(flowId);
+      }
+    } catch (error) {
+      setOperationStatus(error instanceof Error ? error.message : 'Decision failed');
+    }
+  }
+
   const runningProfiles = profiles.filter((profile) => profile.status === 'Running').length;
   const blockedRequests = requests.filter((request) => request.status >= 400).length;
   const averageRisk = Math.round(
@@ -337,7 +355,9 @@ export function App() {
           </section>
         )}
 
-        {activeSection === 'interceptor' && <InterceptorTable replayRequest={replayRequest} requests={requests} />}
+        {activeSection === 'interceptor' && (
+          <InterceptorTable decideRequest={decideRequest} replayRequest={replayRequest} requests={requests} />
+        )}
         {activeSection === 'browser' && (
           <BrowserPanel
             browserUrl={browserUrl}
@@ -415,9 +435,11 @@ function parseAllowedHosts(value: string): string[] {
 }
 
 function InterceptorTable({
+  decideRequest,
   replayRequest,
   requests
 }: {
+  decideRequest: (flowId: string, decision: 'forward' | 'drop' | 'replay') => void;
   replayRequest: (flowId: string) => void;
   requests: InterceptedRequest[];
 }) {
@@ -450,7 +472,11 @@ function InterceptorTable({
             <span className={request.status >= 400 ? 'status-code blocked' : 'status-code'}>{request.status}</span>
             <span>{request.type}</span>
             <span>{request.profile}</span>
-            <button className="table-action" onClick={() => replayRequest(request.id)} type="button">Replay</button>
+            <span className="table-actions">
+              <button className="table-action" onClick={() => decideRequest(request.id, 'forward')} type="button">Forward</button>
+              <button className="table-action danger" onClick={() => decideRequest(request.id, 'drop')} type="button">Drop</button>
+              <button className="table-action" onClick={() => replayRequest(request.id)} type="button">Replay</button>
+            </span>
           </div>
         ))}
       </div>

@@ -6,6 +6,8 @@ from .models import (
     ActionStatus,
     AnonymityLevelUpdate,
     Flow,
+    FlowDecision,
+    FlowDecisionRequest,
     FlowReplayStatus,
     BrowserOpenRequest,
     BrowserOpenStatus,
@@ -220,6 +222,25 @@ def replay_http_flow(
     if result["status"] == "missing":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result["detail"])
     return FlowReplayStatus(flow_id=flow_id, status=result["status"], detail=result["detail"])
+
+
+@app.post("/interceptor/flows/{flow_id}/decision", response_model=FlowDecision)
+def decide_http_flow(
+    flow_id: str,
+    payload: FlowDecisionRequest,
+    db: SQLiteStore = Depends(get_store),
+) -> FlowDecision:
+    decision = InterceptorService(db).decide(flow_id, payload)
+    if decision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flow not found")
+    return decision
+
+
+@app.get("/interceptor/flows/{flow_id}/decisions", response_model=list[FlowDecision])
+def list_http_flow_decisions(flow_id: str, db: SQLiteStore = Depends(get_store)) -> list[FlowDecision]:
+    if db.get_http_flow(flow_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flow not found")
+    return InterceptorService(db).list_decisions(flow_id)
 
 
 @app.post("/browser/open", response_model=BrowserOpenStatus)

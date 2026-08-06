@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .models import AnonymityLevel, HttpFlowCreate, ProfileCreate, ProfileUpdate
+from .models import AnonymityLevel, FlowDecisionRequest, HttpFlowCreate, InterceptDecision, ProfileCreate, ProfileUpdate
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "backend.sqlite3"
@@ -80,6 +80,19 @@ class SQLiteStore:
                     intercept_decision TEXT NOT NULL,
                     captured_at TEXT NOT NULL,
                     FOREIGN KEY(profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS flow_decisions (
+                    id TEXT PRIMARY KEY,
+                    flow_id TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    operator TEXT NOT NULL,
+                    reason TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(flow_id) REFERENCES http_flows(id) ON DELETE CASCADE
                 )
                 """
             )
@@ -175,7 +188,7 @@ class SQLiteStore:
     def create_http_flow(self, payload: HttpFlowCreate) -> dict[str, Any]:
         flow_id = f"flow-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
         captured_at = utc_now_iso()
-        replayable = bool(payload.in_scope)
+        replayable = bool(payload.in_scope and payload.intercept_decision != InterceptDecision.drop)
         with self._connect() as conn:
             conn.execute(
                 """
@@ -200,7 +213,7 @@ class SQLiteStore:
                     payload.resource_type,
                     1 if payload.in_scope else 0,
                     1 if replayable else 0,
-                    "forward" if payload.in_scope else "out_of_scope",
+                    payload.intercept_decision.value if payload.in_scope else InterceptDecision.out_of_scope.value,
                     captured_at,
                 ),
             )
@@ -208,6 +221,47 @@ class SQLiteStore:
         if flow is None:
             raise RuntimeError("flow was not persisted")
         return flow
+
+    def apply_flow_decision(self, flow_id: str, payload: FlowDecisionRequest) -> dict[str, Any] | None:
+        flow = self.get_http_flow(flow_id)
+        if flow is None:
+            return None
+        decision_id = f"decision-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        created_at = utc_now_iso()
+        replayable = payload.decision == InterceptDecision.replay and flow["in_scope"]
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO flow_decisions (id, flow_id, decision, operator, reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (decision_id, flow_id, payload.decision.value, payload.operator, payload.reason, created_at),
+            )
+            conn.execute(
+                """
+                UPDATE http_flows
+                SET intercept_decision = ?, replayable = ?
+                WHERE id = ?
+                """,
+                (payload.decision.value, 1 if replayable else 0, flow_id),
+            )
+        decision = self.get_flow_decision(decision_id)
+        if decision is None:
+            raise RuntimeError("decision was not persisted")
+        return decision
+
+    def list_flow_decisions(self, flow_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM flow_decisions WHERE flow_id = ? ORDER BY created_at ASC",
+                (flow_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_flow_decision(self, decision_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM flow_decisions WHERE id = ?", (decision_id,)).fetchone()
+            return dict(row) if row else None
 
     def list_http_flows(self, profile_id: int | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:

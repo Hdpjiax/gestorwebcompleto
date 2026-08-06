@@ -109,6 +109,11 @@ export const apiClient = {
   },
   traffic: {
     list: () => request<InterceptedRequest[]>('/interceptor/requests'),
+    decide: (flowId: string, decision: 'forward' | 'drop' | 'replay') =>
+      request<{ id: string; flow_id: string; decision: string }>(`/interceptor/flows/${flowId}/decision`, {
+        method: 'POST',
+        body: JSON.stringify({ decision, operator: 'desktop-ui' })
+      }),
     replay: (flowId: string) =>
       request<{ flow_id: string; status: string; detail: string }>(`/interceptor/flows/${flowId}/replay`, {
         method: 'POST',

@@ -1,4 +1,4 @@
-from ..models import HttpFlow, HttpFlowCreate, InterceptedRequest, ReplayRequest
+from ..models import FlowDecision, FlowDecisionRequest, HttpFlow, HttpFlowCreate, InterceptDecision, InterceptedRequest, ReplayRequest
 from ..storage import SQLiteStore
 
 
@@ -54,6 +54,17 @@ class InterceptorService:
             "status": "stubbed",
             "detail": f"Replay validated for {flow['method']} {flow['host']}{flow['path']} with {len(changes)} override(s).",
         }
+
+    def decide(self, flow_id: str, payload: FlowDecisionRequest) -> FlowDecision | None:
+        flow = self.store.get_http_flow(flow_id)
+        if flow is None:
+            return None
+        if not flow["in_scope"] and payload.decision != InterceptDecision.out_of_scope:
+            payload = payload.model_copy(update={"decision": InterceptDecision.out_of_scope})
+        return FlowDecision.model_validate(self.store.apply_flow_decision(flow_id, payload))
+
+    def list_decisions(self, flow_id: str) -> list[FlowDecision]:
+        return [FlowDecision.model_validate(row) for row in self.store.list_flow_decisions(flow_id)]
 
 
 def _host_allowed(host: str, allowed_hosts: list[str]) -> bool:

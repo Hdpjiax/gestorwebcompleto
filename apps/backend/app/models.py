@@ -17,6 +17,14 @@ class ProxyScheme(str, Enum):
     socks5 = "socks5"
 
 
+class InterceptDecision(str, Enum):
+    forward = "forward"
+    drop = "drop"
+    replay = "replay"
+    paused = "paused"
+    out_of_scope = "out_of_scope"
+
+
 class ProxyConfig(BaseModel):
     scheme: ProxyScheme = ProxyScheme.http
     host: str = Field(min_length=1, max_length=255)
@@ -129,13 +137,29 @@ class HttpFlowCreate(BaseModel):
     response_body_preview: str | None = Field(default=None, max_length=4096)
     resource_type: str = Field(default="xhr", max_length=32)
     in_scope: bool = True
+    intercept_decision: InterceptDecision = InterceptDecision.forward
 
 
 class HttpFlow(HttpFlowCreate):
     id: str
     captured_at: datetime
     replayable: bool = True
-    intercept_decision: str = "forward"
+    intercept_decision: InterceptDecision = InterceptDecision.forward
+
+
+class FlowDecisionRequest(BaseModel):
+    decision: InterceptDecision
+    operator: str = Field(default="local-operator", min_length=1, max_length=120)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class FlowDecision(BaseModel):
+    id: str
+    flow_id: str
+    decision: InterceptDecision
+    operator: str
+    reason: str | None = None
+    created_at: datetime
 
 
 class ReplayRequest(BaseModel):

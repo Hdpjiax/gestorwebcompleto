@@ -159,6 +159,21 @@ def test_record_http_flow_redacts_sensitive_headers_and_replays() -> None:
     assert replay.status_code == 200
     assert replay.json()["status"] == "stubbed"
 
+    decision = client.post(
+        f"/interceptor/flows/{flow['id']}/decision",
+        json={"decision": "drop", "operator": "tester", "reason": "controlled test"},
+    )
+    assert decision.status_code == 200
+    assert decision.json()["decision"] == "drop"
+
+    decisions = client.get(f"/interceptor/flows/{flow['id']}/decisions")
+    assert decisions.status_code == 200
+    assert decisions.json()[0]["operator"] == "tester"
+
+    blocked_replay = client.post(f"/interceptor/flows/{flow['id']}/replay")
+    assert blocked_replay.status_code == 200
+    assert blocked_replay.json()["status"] == "blocked"
+
 
 def test_out_of_scope_flow_blocks_replay() -> None:
     profile = create_profile("Out of scope")
